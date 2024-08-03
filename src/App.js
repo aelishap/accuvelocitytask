@@ -4,7 +4,7 @@ import LogTable from './pages/logTable';
 function App() {
 
   return (
-    <div className="App">
+    <div className="mx-4">
       <LogTable  />
     </div>
   );

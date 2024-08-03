@@ -1,9 +1,9 @@
 import {
-  ArrowDownTrayIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
   MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
 import {
-  Card,
   CardHeader,
   Typography,
   Button,
@@ -17,20 +17,55 @@ import {
   DialogFooter,
 } from "@material-tailwind/react";
 import { useState } from "react";
-import { TABLE_ROWS } from "./logData";
+import { TABLE_ROWS } from "./logData"; 
+import * as XLSX from 'xlsx';
 
-const TABLE_HEAD = ["Id", "UserId", "Log Type", "Caller Function", "Log Message", "Create Date"];
+const TABLE_HEAD = ["Select", "Id", "UserId", "Log Type", "Caller Function", "Log Message", "Create Date"];
 const ITEMS_PER_PAGE = 5;
 
 export function LogTable() {
   const [currentPage, setCurrentPage] = useState(1);
   const [openModal, setOpenModal] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
+  const [selectedRows, setSelectedRows] = useState({});
+  const [filterText, setFilterText] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: "Id", direction: "ascending" });
+
+  const [idFilter, setIdFilter] = useState('');
+  const [userIdFilter, setUserIdFilter] = useState('');
+  const [logTypeFilter, setLogTypeFilter] = useState('');
+  const [callerFunctionFilter, setCallerFunctionFilter] = useState('');
+  const [logMessageFilter, setLogMessageFilter] = useState('');
+  const [createdDateFilter, setCreatedDateFilter] = useState('');
 
   const indexOfLastItem = currentPage * ITEMS_PER_PAGE;
   const indexOfFirstItem = indexOfLastItem - ITEMS_PER_PAGE;
-  const currentItems = TABLE_ROWS.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(TABLE_ROWS.length / ITEMS_PER_PAGE);
+
+  const filteredItems = TABLE_ROWS.filter(log =>
+    log.LogMessage.toLowerCase().includes(filterText.toLowerCase()) &&
+    log.Id.toString().toLowerCase().includes(idFilter.toLowerCase()) &&
+    log.UserID.toString().toLowerCase().includes(userIdFilter.toLowerCase()) &&
+    log.logtype.toLowerCase().includes(logTypeFilter.toLowerCase()) &&
+    log.CallerFunction.toLowerCase().includes(callerFunctionFilter.toLowerCase()) &&
+    log.LogMessage.toLowerCase().includes(logMessageFilter.toLowerCase()) &&
+    log.CreatedDateTime.toLowerCase().includes(createdDateFilter.toLowerCase())
+  );
+
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    const aValue = a[sortConfig.key];
+    const bValue = b[sortConfig.key];
+
+    if (aValue < bValue) {
+      return sortConfig.direction === "ascending" ? -1 : 1;
+    }
+    if (aValue > bValue) {
+      return sortConfig.direction === "ascending" ? 1 : -1;
+    }
+    return 0;
+  });
+
+  const currentItems = sortedItems.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(sortedItems.length / ITEMS_PER_PAGE);
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -58,9 +93,33 @@ export function LogTable() {
     setSelectedLog(null);
   };
 
+  const handleCheckboxChange = (logId) => {
+    setSelectedRows((prev) => ({
+      ...prev,
+      [logId]: !prev[logId],
+    }));
+  };
+
+  const downloadSelected = () => {
+    const selectedData = TABLE_ROWS.filter(row => selectedRows[row.Id]);
+
+    const worksheet = XLSX.utils.json_to_sheet(selectedData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Logs");
+    XLSX.writeFile(workbook, "selected_logs.xlsx");
+  };
+
+  const handleSort = (key) => {
+    let direction = "ascending";
+    if (sortConfig.key === key && sortConfig.direction === "ascending") {
+      direction = "descending";
+    }
+    setSortConfig({ key, direction });
+  };
+
   return (
     <>
-      <Card className="h-full w-full">
+      <div className="h-full w-full mt-8 ">
         <CardHeader floated={false} shadow={false} className="rounded-none">
           <div className="mb-4 flex flex-col justify-between gap-8 md:flex-row md:items-center">
             <div>
@@ -71,28 +130,56 @@ export function LogTable() {
             <div className="flex w-full shrink-0 gap-2 md:w-max">
               <div className="w-full md:w-72">
                 <Input
-                  label="Search"
+                  label="Search Log Message"
                   icon={<MagnifyingGlassIcon className="h-5 w-5" />}
+                  onChange={(e) => setFilterText(e.target.value)}
                 />
               </div>
-              <Button className="flex items-center gap-3" size="sm">
-                <ArrowDownTrayIcon strokeWidth={2} className="h-4 w-4" /> Download
+              <Button className="flex items-center gap-3" size="sm" onClick={downloadSelected}>
+                <ArrowDownIcon strokeWidth={2} className="h-4 w-4" /> Download
               </Button>
             </div>
           </div>
         </CardHeader>
         <CardBody className="overflow-x-auto px-0">
-          <table className="w-full min-w-max table-auto text-left border border-blue-gray-200 rounded-lg shadow-md">
+          <table className=" text-left border border-blue-gray-200 rounded-lg shadow-md">
             <thead>
               <tr>
-                {TABLE_HEAD.map((head) => (
+                {TABLE_HEAD.map((head, index) => (
                   <th
-                    key={head}
-                    className="border-b border-blue-gray-200 bg-blue-gray-50 p-4 text-blue-gray-600"
+                    key={index}
+                    className="border-b border-blue-gray-200 bg-blue-gray-50 p-4 text-blue-gray-600 cursor-pointer"
+                    onClick={() => handleSort(head === "Id" ? "Id" : head === "UserId" ? "UserID" : head === "Log Type" ? "logtype" : head === "Caller Function" ? "CallerFunction" : head === "Log Message" ? "LogMessage" : "CreatedDateTime")}
                   >
-                    <Typography variant="small" color="blue-gray" className="font-bold leading-none">
-                      {head}
-                    </Typography>
+                    <div className="flex items-center">
+                      <Typography variant="small" color="blue-gray" className="font-bold leading-none">
+                        {head}
+                      </Typography>
+                      {head !== "Select" && <div className="ml-1 flex">
+                        <ArrowUpIcon
+                          className={`h-3 w-3 ${sortConfig.key === (head === "Id" ? "Id" : head === "UserId" ? "UserID" : head === "Log Type" ? "logtype" : head === "Caller Function" ? "CallerFunction" : head === "Log Message" ? "LogMessage" : "CreatedDateTime") && sortConfig.direction === "ascending" ? 'text-blue-600' : 'text-gray-400'}`}
+                        />
+                        <ArrowDownIcon
+                          className={`h-3 w-3 ${sortConfig.key === (head === "Id" ? "Id" : head === "UserId" ? "UserID" : head === "Log Type" ? "logtype" : head === "Caller Function" ? "CallerFunction" : head === "Log Message" ? "LogMessage" : "CreatedDateTime") && sortConfig.direction === "descending" ? 'text-blue-600' : 'text-gray-400'}`}
+                        />
+                      </div>}
+                    </div>
+                    {head !== "Select" && (
+                      <Input
+                        type="text"
+                        className="mt-1 h-[35px]"
+                        placeholder={`Filter ${head}`}
+                        onChange={(e) => {
+                          const filterValue = e.target.value;
+                          if (head === "Id") setIdFilter(filterValue);
+                          if (head === "UserId") setUserIdFilter(filterValue);
+                          if (head === "Log Type") setLogTypeFilter(filterValue);
+                          if (head === "Caller Function") setCallerFunctionFilter(filterValue);
+                          if (head === "Log Message") setLogMessageFilter(filterValue);
+                          if (head === "Create Date") setCreatedDateFilter(filterValue);
+                        }}
+                      />
+                    )}
                   </th>
                 ))}
               </tr>
@@ -100,10 +187,17 @@ export function LogTable() {
             <tbody>
               {currentItems.map((log, index) => {
                 const isLast = index === currentItems.length - 1;
-                const classes = isLast ? "p-4" : "p-4 border-b border-blue-gray-200";
+                const classes = isLast ? "p-2" : "p-2 border-b border-blue-gray-200";
 
                 return (
                   <tr key={log.Id} className="hover:bg-blue-gray-50 cursor-pointer">
+                    <td className={classes}>
+                      <input
+                        type="checkbox"
+                        checked={selectedRows[log.Id] || false}
+                        onChange={() => handleCheckboxChange(log.Id)}
+                      />
+                    </td>
                     <td className={classes}>
                       <Typography variant="small" color="blue-gray">
                         {log.Id}
@@ -144,7 +238,7 @@ export function LogTable() {
             </tbody>
           </table>
         </CardBody>
-        <CardFooter className="flex items-center justify-between border-t border-blue-gray-50 p-4">
+        <CardFooter className="flex items-center justify-between border-t border-blue-gray-50 p-2">
           <Button variant="outlined" size="sm" onClick={handlePreviousPage} disabled={currentPage === 1}>
             Previous
           </Button>
@@ -164,9 +258,8 @@ export function LogTable() {
             Next
           </Button>
         </CardFooter>
-      </Card>
+      </div>
 
-      {/* Modal for displaying full log details */}
       <Dialog open={openModal} handler={closeModal}>
         <DialogHeader>Log Details</DialogHeader>
         <DialogBody>
