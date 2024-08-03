@@ -1,7 +1,12 @@
+import React from 'react';
+import LogTable from './pages/logTable';
 
 function App() {
+
   return (
-    <div>ssdsd</div>
+    <div className="App">
+      <LogTable  />
+    </div>
   );
 }
 
